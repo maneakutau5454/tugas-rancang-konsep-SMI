@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kuis Gamifikasi dengan Streak Harian</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f6;
+            color: #333;
+            max-width: 600px;
+            margin: 40px auto;
+            padding: 20px;
+        }
+        .dashboard {
+            background: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+        .xp-container {
+            background: #e0e0e0;
+            border-radius: 10px;
+            height: 20px;
+            width: 100%;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+        .xp-bar {
+            background: #4caf50;
+            height: 100%;
+            width: 0%;
+            transition: width 0.4s ease;
+        }
+        .quiz-container {
+            background: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 16px;
+            transition: background 0.2s;
+        }
+        button:hover { background: #0056b3; }
+        .danger { background: #dc3545; }
+        .danger:hover { background: #c82333; }
+        .badges { margin-top: 15px; color: #ff9800; font-weight: bold; }
+        #feedback { color: #28a745; font-weight: bold; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+    <div class="dashboard">
+        <h2>Dashboard Player</h2>
+        <div class="stats">
+            <div>Level: <span id="levelDisplay">1</span></div>
+            <div>XP: <span id="xpDisplay">0</span></div>
+            <div>🔥 Streak: <span id="streakDisplay">0</span> Hari</div>
+        </div>
+        
+        <div class="xp-container">
+            <div class="xp-bar" id="xpBar"></div>
+        </div>
+        
+        <div class="badges" id="badgeContainer">Lencana: (Belum ada)</div>
+        <button class="danger" onclick="resetGamification()">Reset Progres (Untuk Testing)</button>
+    </div>
+
+    <div class="quiz-container">
+        <h3>Kuis Cepat: Jawab untuk dapat XP!</h3>
+        <p id="questionProgress" style="font-size: 14px; color: #666; margin-bottom: 5px;">Pertanyaan 1 dari 5</p>
+        <p id="question">Apakah elemen HTML yang digunakan untuk JavaScript?</p>
+        <div id="optionsContainer"></div>
+        <p id="feedback"></p>
+    </div>
+
+    <script>
+        // 1. Inisialisasi Variabel Global
+        let currentXp = 0;
+        let currentLvl = 1;
+        let streakCount = 0;
+
+        // 2. Fungsi Validasi Streak Harian
+        function checkDailyStreak() {
+            // Kita hilangkan jam, menit, detik untuk akurasi perhitungan beda hari
+            const now = new Date();
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime(); 
+            
+            const lastAccessRaw = localStorage.getItem('lastAccessDate');
+            const savedStreak = localStorage.getItem('streakCount');
+
+            // Load data jika ada
+            if (savedStreak) streakCount = parseInt(savedStreak);
+
+            if (lastAccessRaw) {
+                const lastAccess = parseInt(lastAccessRaw);
+                const diffTime = today - lastAccess;
+                const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+                if (diffDays === 1) {
+                    // Login di hari berturut-turut
+                    streakCount++;
+                    const bonusXp = 5; 
+                    alert(`🔥 Streak Harian Terjaga! Anda login ${streakCount} hari berturut-turut. +${bonusXp} XP!`);
+                    awardGamificationXp(bonusXp, 'streak');
+                } else if (diffDays > 1) {
+                    // Streak putus karena bolong hari
+                    streakCount = 1;
+                    alert("⚠️ Streak Harian Terputus! Kembali ke hari 1.");
+                } else if (diffDays === 0) {
+                    // Sudah login hari ini, tidak dapat bonus tambahan, namun UI dirender.
+                    console.log("Sudah login hari ini.");
+                }
+            } else {
+                // Hari pertama bermain
+                streakCount = 1;
+                alert("Selamat datang di Kuis! Hari ke-1 streak Anda dimulai.");
+            }
+
+            // Simpan tanggal hari ini dan streak ke localStorage
+            localStorage.setItem('lastAccessDate', today.toString());
+            localStorage.setItem('streakCount', streakCount);
+            
+            document.getElementById('streakDisplay').innerText = streakCount;
+        }
+
+        // 3. Fungsi Utama dari Tugas (Modifikasi dengan LocalStorage)
+        function awardGamificationXp(xp, action) {
+            currentXp += xp;
+
+            // Naik level setiap ambang batas Level x 100 XP terlampaui
+            if (currentXp >= currentLvl * 100) {
+                currentLvl++;
+                unlockLevelUpFeedback(currentLvl);
+            }
+
+            const percent = Math.min(100, (currentXp / (currentLvl * 100)) * 100);
+            updateXpBar(percent);
+            updateLevelBadge(currentLvl);
+
+            // Lencana terbuka berdasarkan ambang XP kumulatif
+            checkBadgeUnlock(currentXp);
+
+            // Simpan Progres XP dan Level ke LocalStorage
+            localStorage.setItem('currentXp', currentXp);
+            localStorage.setItem('currentLvl', currentLvl);
+        }
+
+        function resetGamification() {
+            if(confirm("Yakin ingin reset semua XP, Level, dan Streak?")) {
+                currentXp = 0;
+                currentLvl = 1;
+                streakCount = 0;
+                currentQuestionIndex = 0;
+                localStorage.removeItem('currentXp');
+                localStorage.removeItem('currentLvl');
+                localStorage.removeItem('streakCount');
+                localStorage.removeItem('lastAccessDate');
+                renderGamificationUI();
+                loadQuestion();
+                document.getElementById('feedback').innerText = '';
+                alert("Sistem berhasil di-reset. Silakan refresh halaman.");
+            }
+        }
+
+        // 4. Fungsi Pendukung UI
+        function unlockLevelUpFeedback(level) {
+            alert(`🎉 LEVEL UP! Anda sekarang Level ${level}!`);
+        }
+
+        function updateXpBar(percent) {
+            document.getElementById('xpBar').style.width = percent + '%';
+            document.getElementById('xpDisplay').innerText = currentXp;
+        }
+
+        function updateLevelBadge(level) {
+            document.getElementById('levelDisplay').innerText = level;
+        }
+
+        function checkBadgeUnlock(xp) {
+            let badges = "Lencana: ";
+            if (xp >= 50) badges += "🌟 Pemula ";
+            if (xp >= 100) badges += "🔥 Pelajar Rajin ";
+            if (xp >= 200) badges += "👑 Ahli Kode ";
+            if (xp < 50) badges += "(Belum ada)";
+            document.getElementById('badgeContainer').innerText = badges;
+        }
+
+        function renderGamificationUI() {
+            // Load XP dan Level dari local storage saat refresh
+            const savedXp = localStorage.getItem('currentXp');
+            const savedLvl = localStorage.getItem('currentLvl');
+            if (savedXp) currentXp = parseInt(savedXp);
+            if (savedLvl) currentLvl = parseInt(savedLvl);
+
+            const percent = Math.min(100, (currentXp / (currentLvl * 100)) * 100);
+            updateXpBar(percent);
+            updateLevelBadge(currentLvl);
+            checkBadgeUnlock(currentXp);
+            document.getElementById('streakDisplay').innerText = localStorage.getItem('streakCount') || 0;
+        }
+
+        // 5. Data & Fungsi Logika Kuis (5 Pertanyaan)
+        const quizQuestions = [
+            {
+                question: "Apakah elemen HTML yang digunakan untuk JavaScript?",
+                options: [
+                    { text: "<script>", isCorrect: true },
+                    { text: "<javascript>", isCorrect: false },
+                    { text: "<js>", isCorrect: false }
+                ]
+            },
+            {
+                question: "Properti CSS manakah yang digunakan untuk mengubah warna latar belakang?",
+                options: [
+                    { text: "color", isCorrect: false },
+                    { text: "background-color", isCorrect: true },
+                    { text: "bgcolor", isCorrect: false }
+                ]
+            },
+            {
+                question: "Fitur browser manakah yang menyimpan data di sisi klien tanpa batas waktu kadaluarsa?",
+                options: [
+                    { text: "sessionStorage", isCorrect: false },
+                    { text: "localStorage", isCorrect: true },
+                    { text: "tempStorage", isCorrect: false }
+                ]
+            },
+            {
+                question: "Metode JavaScript manakah yang digunakan untuk mengambil elemen HTML berdasarkan ID?",
+                options: [
+                    { text: "getElementById()", isCorrect: true },
+                    { text: "getElementByClass()", isCorrect: false },
+                    { text: "querySelectorAll()", isCorrect: false }
+                ]
+            },
+            {
+                question: "Simbol apakah yang digunakan untuk memilih ID pada selector CSS?",
+                options: [
+                    { text: ". (Tanda Titik)", isCorrect: false },
+                    { text: "# (Tanda Pagar)", isCorrect: true },
+                    { text: "@ (Tanda At)", isCorrect: false }
+                ]
+            }
+        ];
+
+        let currentQuestionIndex = 0;
+
+        function loadQuestion() {
+            const progressEl = document.getElementById('questionProgress');
+            const questionEl = document.getElementById('question');
+            const optionsContainer = document.getElementById('optionsContainer');
+
+            optionsContainer.innerHTML = '';
+
+            if (currentQuestionIndex < quizQuestions.length) {
+                const currentQ = quizQuestions[currentQuestionIndex];
+                progressEl.innerText = `Pertanyaan ${currentQuestionIndex + 1} dari ${quizQuestions.length}`;
+                questionEl.innerText = currentQ.question;
+
+                currentQ.options.forEach(option => {
+                    const btn = document.createElement('button');
+                    btn.innerText = option.text;
+                    btn.onclick = () => answerQuiz(option.isCorrect);
+                    optionsContainer.appendChild(btn);
+                });
+            } else {
+                progressEl.innerText = `Kuis Selesai (${quizQuestions.length}/${quizQuestions.length})`;
+                questionEl.innerText = "🎉 Selamat! Anda telah menyelesaikan semua pertanyaan kuis!";
+                const restartBtn = document.createElement('button');
+                restartBtn.innerText = "Ulangi Kuis";
+                restartBtn.onclick = restartQuiz;
+                optionsContainer.appendChild(restartBtn);
+            }
+        }
+
+        function answerQuiz(isCorrect) {
+            const feedback = document.getElementById('feedback');
+            if (isCorrect) {
+                feedback.style.color = '#28a745';
+                feedback.innerText = "Benar! +20 XP";
+                awardGamificationXp(20, 'quiz_answer');
+                currentQuestionIndex++;
+                loadQuestion();
+            } else {
+                feedback.style.color = '#dc3545';
+                feedback.innerText = "Salah, coba lagi!";
+            }
+        }
+
+        function restartQuiz() {
+            currentQuestionIndex = 0;
+            document.getElementById('feedback').innerText = '';
+            loadQuestion();
+        }
+
+        // 6. Eksekusi Saat Halaman Dimuat
+        window.onload = function() {
+            renderGamificationUI();
+            checkDailyStreak(); // Eksekusi logika streak harian
+            loadQuestion(); // Muat pertanyaan kuis pertama
+        };
+    </script>
+</body>
+</html>
