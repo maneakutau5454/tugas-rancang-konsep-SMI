@@ -1,2 +1,4 @@
 # tugas-rancang-konsep-SMI
-lutfi ibnurahim, kelas 31.
+Nama: Lutfi Ibnurahim
+Kelas: 31
+NIM: 2312220012
